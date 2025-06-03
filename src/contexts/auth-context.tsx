@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { createContext, useState, useEffect, ReactNode } from "react";
+import { useRouter } from "next/navigation";
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -10,7 +10,9 @@ interface AuthContextType {
   isLoading: boolean;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined
+);
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -22,7 +24,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem("authToken");
     if (token) {
       setIsAuthenticated(true);
     }
@@ -30,15 +32,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = (token: string) => {
-    localStorage.setItem('authToken', token);
+    localStorage.setItem("authToken", token);
     setIsAuthenticated(true);
-    router.push('/dashboard');
+    router.push("/dashboard");
   };
 
   const logout = () => {
-    localStorage.removeItem('authToken');
+    localStorage.removeItem("authToken");
     setIsAuthenticated(false);
-    router.push('/login');
+    router.push("/login");
   };
 
   return (

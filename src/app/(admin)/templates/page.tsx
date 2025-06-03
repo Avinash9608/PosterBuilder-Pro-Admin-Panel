@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import React, { useState } from 'react';
-import Image from 'next/image';
+import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import {
   Table,
   TableBody,
@@ -14,7 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { PlusCircle, Edit, Trash2, MoreVertical, ImagePlus } from "lucide-react";
+import {
+  PlusCircle,
+  Edit,
+  Trash2,
+  MoreVertical,
+  ImagePlus,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -31,35 +37,70 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent } from '@/components/ui/card';
-
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface PosterTemplate {
-  id: string;
-  name: string;
-  previewUrl: string;
-  dateCreated: string;
-  description: string;
+  _id: string;
+  title: string;
+  imageUrl: string;
+  createdAt: string;
+  category: string;
 }
 
-const mockTemplates: PosterTemplate[] = [
-  { id: "tpl001", name: "Summer Sale Fiesta", previewUrl: "https://placehold.co/150x100.png?a=1", dateCreated: "2024-07-01", description: "A vibrant template for summer promotions." },
-  { id: "tpl002", name: "Tech Expo 2024", previewUrl: "https://placehold.co/150x100.png?a=2", dateCreated: "2024-06-15", description: "Modern design for technology events." },
-  { id: "tpl003", name: "Grand Opening", previewUrl: "https://placehold.co/150x100.png?a=3", dateCreated: "2024-05-20", description: "Elegant template for new business openings." },
-];
-
 export default function TemplateControlPage() {
-  const [templates, setTemplates] = useState<PosterTemplate[]>(mockTemplates);
+  const [templates, setTemplates] = useState<PosterTemplate[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentTemplate, setCurrentTemplate] = useState<PosterTemplate | null>(null);
-  const [templateName, setTemplateName] = useState("");
-  const [templateDescription, setTemplateDescription] = useState("");
+  const [currentTemplate, setCurrentTemplate] = useState<PosterTemplate | null>(
+    null
+  );
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  // 🔹 Fetch templates from backend
+  const fetchTemplates = async () => {
+    try {
+      const res = await fetch(
+        "https://publicityposterbackend.onrender.com/api/templates"
+      );
+      const data = await res.json();
+      setTemplates(data);
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch templates",
+      });
+    }
+  };
+
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  // 🔹 Convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Ensure this is a proper base64 image string
+        if (!result.startsWith("data:image/")) {
+          reject(new Error("File is not an image"));
+        } else {
+          resolve(result);
+        }
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // 🔹 File change handler
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
@@ -68,68 +109,140 @@ export default function TemplateControlPage() {
     }
   };
 
+  // 🔹 Add Template Modal
   const openAddModal = () => {
     setCurrentTemplate(null);
-    setTemplateName("");
-    setTemplateDescription("");
+    setTitle("");
+    setCategory("");
     setPreviewFile(null);
     setPreviewUrl(null);
     setIsModalOpen(true);
   };
 
+  // 🔹 Edit Template Modal
   const openEditModal = (template: PosterTemplate) => {
     setCurrentTemplate(template);
-    setTemplateName(template.name);
-    setTemplateDescription(template.description);
-    setPreviewUrl(template.previewUrl); 
-    setPreviewFile(null); 
+    setTitle(template.title);
+    setCategory(template.category);
+    setPreviewUrl(template.imageUrl);
+    setPreviewFile(null);
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setTemplates(prev => prev.filter(t => t.id !== id));
-    toast({ title: "Template Deleted", description: `Template ${id} has been removed.` });
+  // 🔹 Delete Template
+  // frontend/pages/templates/page.tsx
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(
+        `https://publicityposterbackend.onrender.com/api/templates/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete template");
+      }
+
+      // Update local state
+      setTemplates((prev) => prev.filter((t) => t._id !== id));
+      toast({ title: "Success", description: "Template deleted" });
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Deletion failed",
+      });
+    }
   };
 
-  const handleSubmit = () => {
-    if (!templateName.trim() || !templateDescription.trim()) {
-      toast({ variant: "destructive", title: "Validation Error", description: "Name and description are required." });
-      return;
-    }
-    if (!currentTemplate && !previewFile) {
-       toast({ variant: "destructive", title: "Validation Error", description: "Preview image is required for new templates." });
+  // 🔹 Submit handler
+  const handleSubmit = async () => {
+    if (!title.trim() || !category.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Title and category are required.",
+      });
       return;
     }
 
-    const finalPreviewUrl = previewFile ? URL.createObjectURL(previewFile) : currentTemplate?.previewUrl || "https://placehold.co/150x100.png";
-
-    if (currentTemplate) {
-      // Edit mode
-      setTemplates(prev =>
-        prev.map(t =>
-          t.id === currentTemplate.id ? { ...t, name: templateName, description: templateDescription, previewUrl: finalPreviewUrl } : t
-        )
-      );
-      toast({ title: "Template Updated", description: `Template ${currentTemplate.name} updated.` });
-    } else {
-      // Add mode
-      const newTemplate: PosterTemplate = {
-        id: `tpl${Date.now()}`,
-        name: templateName,
-        description: templateDescription,
-        previewUrl: finalPreviewUrl,
-        dateCreated: new Date().toISOString().split('T')[0],
-      };
-      setTemplates(prev => [newTemplate, ...prev]);
-      toast({ title: "Template Added", description: `Template ${newTemplate.name} created.` });
+    if (!previewFile && !currentTemplate) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Preview image is required.",
+      });
+      return;
     }
-    setIsModalOpen(false);
+
+    setIsLoading(true);
+
+    try {
+      let imageBase64 = "";
+      if (previewFile) {
+        imageBase64 = await fileToBase64(previewFile);
+      }
+
+      const url = currentTemplate
+        ? `https://publicityposterbackend.onrender.com/api/templates/${currentTemplate._id}`
+        : "https://publicityposterbackend.onrender.com/api/templates";
+
+      const method = currentTemplate ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          category,
+          ...(previewFile && { imageBase64 }),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to save template");
+      }
+
+      // Update state
+      if (currentTemplate) {
+        setTemplates(
+          templates.map((t) => (t._id === currentTemplate._id ? result : t))
+        );
+      } else {
+        setTemplates([result, ...templates]);
+      }
+
+      toast({
+        title: "Success",
+        description: currentTemplate
+          ? "Template updated successfully"
+          : "Template created successfully",
+      });
+
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Error:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to save template",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold font-headline">Poster Templates</h2>
+        <h2 className="text-2xl font-semibold">Poster Templates</h2>
         <Button onClick={openAddModal}>
           <PlusCircle className="mr-2 h-4 w-4" /> Add New Template
         </Button>
@@ -141,21 +254,29 @@ export default function TemplateControlPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Preview</TableHead>
-                <TableHead>Name</TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Category</TableHead>
                 <TableHead>Date Created</TableHead>
-                <TableHead>Description</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {templates.map((template) => (
-                <TableRow key={template.id}>
+                <TableRow key={template._id}>
                   <TableCell>
-                    <Image src={template.previewUrl} alt={template.name} width={100} height={66} className="rounded-md border object-cover" data-ai-hint="poster template" />
+                    <Image
+                      src={template.imageUrl}
+                      alt={template.title}
+                      width={100}
+                      height={66}
+                      className="rounded-md border object-cover"
+                    />
                   </TableCell>
-                  <TableCell className="font-medium">{template.name}</TableCell>
-                  <TableCell>{template.dateCreated}</TableCell>
-                  <TableCell className="max-w-xs truncate">{template.description}</TableCell>
+                  <TableCell>{template.title}</TableCell>
+                  <TableCell>{template.category}</TableCell>
+                  <TableCell>
+                    {new Date(template.createdAt).toLocaleDateString()}
+                  </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -164,10 +285,15 @@ export default function TemplateControlPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openEditModal(template)}>
+                        <DropdownMenuItem
+                          onClick={() => openEditModal(template)}
+                        >
                           <Edit className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDelete(template.id)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                        <DropdownMenuItem
+                          onClick={() => handleDelete(template._id)}
+                          className="text-destructive"
+                        >
                           <Trash2 className="mr-2 h-4 w-4" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -183,38 +309,81 @@ export default function TemplateControlPage() {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{currentTemplate ? "Edit" : "Add New"} Template</DialogTitle>
+            <DialogTitle>
+              {currentTemplate ? "Edit" : "Add New"} Template
+            </DialogTitle>
             <DialogDescription>
-              {currentTemplate ? "Update the details of the poster template." : "Fill in the details to create a new poster template."}
+              {currentTemplate
+                ? "Update the template details."
+                : "Fill the form to create a new poster template."}
             </DialogDescription>
           </DialogHeader>
+
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">Name</Label>
-              <Input id="name" value={templateName} onChange={(e) => setTemplateName(e.target.value)} className="col-span-3" placeholder="e.g. Summer Sale" />
+              <Label htmlFor="title" className="text-right">
+                Title
+              </Label>
+              <Input
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="col-span-3"
+                placeholder="e.g. Summer Sale"
+              />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="description" className="text-right">Description</Label>
-              <Textarea id="description" value={templateDescription} onChange={(e) => setTemplateDescription(e.target.value)} className="col-span-3" placeholder="A brief description of the template." />
+              <Label htmlFor="category" className="text-right">
+                Category
+              </Label>
+              <Input
+                id="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="col-span-3"
+                placeholder="e.g. Promotional"
+              />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="preview" className="text-right">Preview</Label>
+              <Label htmlFor="preview" className="text-right">
+                Preview Image
+              </Label>
               <div className="col-span-3">
-                <Input id="preview" type="file" accept="image/*" onChange={handleFileChange} className="mb-2" />
-                {previewUrl && <Image src={previewUrl} alt="Preview" width={150} height={100} className="rounded-md border object-cover" data-ai-hint="template preview" />}
-                {!previewUrl && (
-                  <div className="w-[150px] h-[100px] bg-muted rounded-md flex items-center justify-center text-muted-foreground border">
+                <Input
+                  id="preview"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="mb-2"
+                />
+                {previewUrl ? (
+                  <Image
+                    src={previewUrl}
+                    alt="Preview"
+                    width={150}
+                    height={100}
+                    className="rounded-md border object-cover"
+                  />
+                ) : (
+                  <div className="w-[150px] h-[100px] bg-muted rounded-md flex items-center justify-center border">
                     <ImagePlus size={32} />
                   </div>
                 )}
               </div>
             </div>
           </div>
+
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleSubmit}>{currentTemplate ? "Save Changes" : "Create Template"}</Button>
+            <Button onClick={handleSubmit} disabled={isLoading}>
+              {isLoading
+                ? "Processing..."
+                : currentTemplate
+                ? "Save Changes"
+                : "Create Template"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
