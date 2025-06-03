@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-const API_BASE_URL = "https://publicityposterbackend.onrender.com";
 import {
   Table,
   TableBody,
@@ -11,53 +10,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { format } from "date-fns";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { format } from "date-fns";
+import { MoreVertical, Eye, Edit, Trash2 } from "lucide-react";
 import Image from "next/image";
-import { useAuth } from "@/hooks/use-auth";
+
+const API_BASE_URL = "https://publicityposterbackend.onrender.com";
 
 interface Poster {
   _id: string;
-  user: {
-    _id: string;
-    username: string;
-  };
+  businessName: string;
   template: {
-    _id: string;
     title: string;
   };
-  businessName: string;
   phoneNumber: string;
   logoUrl?: string;
   finalPosterUrl: string;
@@ -66,213 +38,74 @@ interface Poster {
 
 export default function PostersManagementPage() {
   const router = useRouter();
-  const { token, isAuthenticated } = useAuth();
   const [posters, setPosters] = useState<Poster[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedPoster, setSelectedPoster] = useState<Poster | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [editForm, setEditForm] = useState({
-    businessName: "",
-    phoneNumber: "",
-  });
-  const { toast } = useToast();
 
+  // Fetch All Posters
   const fetchPosters = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`${API_BASE_URL}/api/posters/my-posters`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await fetch(`${API_BASE_URL}/api/posters`);
 
       if (!res.ok) {
-        if (res.status === 401) {
-          toast({
-            variant: "destructive",
-            title: "Session Expired",
-            description: "Please login again",
-          });
-          router.push("/login");
-          return;
-        }
         throw new Error("Failed to fetch posters");
       }
 
       const data = await res.json();
-      const postersWithFullPaths = data.map((poster: Poster) => ({
-        ...poster,
-        logoUrl: poster.logoUrl
-          ? `${API_BASE_URL}${poster.logoUrl}`
-          : undefined,
-        finalPosterUrl: `${API_BASE_URL}${poster.finalPosterUrl}`,
-      }));
-      setPosters(postersWithFullPaths);
+      setPosters(data);
     } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description:
-          err instanceof Error ? err.message : "Failed to fetch posters",
-      });
+      console.error("Failed to fetch posters", err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
-
-    if (token) {
-      fetchPosters();
-    }
-  }, [token, isAuthenticated, router]);
-
-  const handleEditSubmit = async () => {
-    if (!selectedPoster || !token) return;
+  // Delete Poster
+  const handleDelete = async (id: string) => {
+    const confirmed = confirm("Are you sure you want to delete this poster?");
+    if (!confirmed) return;
 
     try {
-      setIsLoading(true);
-      const res = await fetch(
-        `${API_BASE_URL}/api/posters/${selectedPoster._id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(editForm),
-        }
-      );
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          toast({
-            variant: "destructive",
-            title: "Session Expired",
-            description: "Please login again",
-          });
-          router.push("/login");
-          return;
-        }
-        throw new Error("Failed to update poster");
-      }
-
-      const data = await res.json();
-      setPosters((prev) =>
-        prev.map((poster) =>
-          poster._id === selectedPoster._id
-            ? { ...poster, ...editForm }
-            : poster
-        )
-      );
-
-      toast({
-        title: "Success",
-        description: "Poster updated successfully",
+      const res = await fetch(`${API_BASE_URL}/api/posters/${id}`, {
+        method: "DELETE",
       });
-      setIsEditModalOpen(false);
+
+      if (!res.ok) throw new Error("Delete failed");
+
+      setPosters((prev) => prev.filter((poster) => poster._id !== id));
     } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description:
-          err instanceof Error ? err.message : "Failed to update poster",
-      });
-    } finally {
-      setIsLoading(false);
+      console.error("Delete failed:", err);
     }
   };
 
-  const handleDeletePoster = async () => {
-    if (!selectedPoster || !token) return;
-
-    try {
-      setIsLoading(true);
-      const res = await fetch(
-        `${API_BASE_URL}/api/posters/${selectedPoster._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          toast({
-            variant: "destructive",
-            title: "Session Expired",
-            description: "Please login again",
-          });
-          router.push("/login");
-          return;
-        }
-        throw new Error("Failed to delete poster");
-      }
-
-      setPosters((prev) =>
-        prev.filter((poster) => poster._id !== selectedPoster._id)
-      );
-      toast({
-        title: "Success",
-        description: "Poster deleted successfully",
-      });
-      setIsDeleteModalOpen(false);
-    } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description:
-          err instanceof Error ? err.message : "Failed to delete poster",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const openEditModal = (poster: Poster) => {
-    setSelectedPoster(poster);
-    setEditForm({
-      businessName: poster.businessName,
-      phoneNumber: poster.phoneNumber,
-    });
-    setIsEditModalOpen(true);
-  };
-
+  // View Poster Details
   const openViewModal = (poster: Poster) => {
     setSelectedPoster(poster);
     setIsViewModalOpen(true);
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <p>Redirecting to login...</p>
-        </div>
-      </div>
-    );
-  }
+  // Edit Poster (Redirect to edit form)
+  const handleEdit = (id: string) => {
+    router.push(`/posters/edit/${id}`);
+  };
+
+  useEffect(() => {
+    fetchPosters();
+  }, []);
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold">My Posters</h2>
+        <h2 className="text-2xl font-semibold">All Posters</h2>
         <Button onClick={fetchPosters} disabled={isLoading}>
           {isLoading ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
 
       <Card className="shadow-sm">
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -315,15 +148,12 @@ export default function PostersManagementPage() {
                             <Eye className="mr-2 h-4 w-4" /> View
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => openEditModal(poster)}
+                            onClick={() => handleEdit(poster._id)}
                           >
-                            <Pencil className="mr-2 h-4 w-4" /> Edit
+                            <Edit className="mr-2 h-4 w-4" /> Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onSelect={() => {
-                              setSelectedPoster(poster);
-                              setIsDeleteModalOpen(true);
-                            }}
+                            onClick={() => handleDelete(poster._id)}
                             className="text-destructive focus:text-destructive focus:bg-destructive/10"
                           >
                             <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -345,147 +175,83 @@ export default function PostersManagementPage() {
         </CardContent>
       </Card>
 
-      {/* View Poster Dialog */}
+      {/* View Poster Modal */}
       {selectedPoster && (
-        <AlertDialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-          <AlertDialogContent className="sm:max-w-2xl">
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Poster: {selectedPoster.businessName}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div className="space-y-2">
-                    <p>
-                      <span className="font-medium">Template:</span>{" "}
-                      {selectedPoster.template.title}
-                    </p>
-                    <p>
-                      <span className="font-medium">Phone:</span>{" "}
-                      {selectedPoster.phoneNumber}
-                    </p>
-                    <p>
-                      <span className="font-medium">Created:</span>{" "}
-                      {format(
-                        new Date(selectedPoster.createdAt),
-                        "MMM dd, yyyy"
-                      )}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    {selectedPoster.logoUrl && (
-                      <p>
-                        <span className="font-medium">Logo:</span>{" "}
-                        <Image
-                          src={selectedPoster.logoUrl}
-                          alt="Business Logo"
-                          width={50}
-                          height={50}
-                          className="inline-block"
-                        />
-                      </p>
-                    )}
-                  </div>
+        <div
+          className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 ${
+            isViewModalOpen ? "block" : "hidden"
+          }`}
+        >
+          <div className="bg-white p-6 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-xl font-semibold">
+                {selectedPoster.businessName}
+              </h3>
+              <button
+                onClick={() => setIsViewModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-medium">Template:</h4>
+                  <p>{selectedPoster.template.title}</p>
                 </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
+                <div>
+                  <h4 className="font-medium">Phone Number:</h4>
+                  <p>{selectedPoster.phoneNumber}</p>
+                </div>
+                <div>
+                  <h4 className="font-medium">Created At:</h4>
+                  <p>{format(new Date(selectedPoster.createdAt), "PPP")}</p>
+                </div>
+                {selectedPoster.logoUrl && (
+                  <div>
+                    <h4 className="font-medium">Logo:</h4>
+                    <Image
+                      src={selectedPoster.logoUrl}
+                      alt="Business Logo"
+                      width={150}
+                      height={150}
+                      className="rounded-md"
+                    />
+                  </div>
+                )}
+              </div>
 
-            {/* Final Poster Section */}
-            <div className="my-6">
-              <h3 className="font-medium mb-4">Final Poster:</h3>
-              <div className="border rounded-md p-2">
-                <img
-                  src={selectedPoster.finalPosterUrl}
-                  alt="Final Poster"
-                  className="rounded-md max-h-96 w-auto mx-auto"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src =
-                      "https://placehold.co/600x400?text=Poster+Not+Found";
-                    target.onerror = null;
-                  }}
-                />
+              <div>
+                <h4 className="font-medium mb-2">Final Poster:</h4>
+                <div className="border rounded-md p-2">
+                  <img
+                    src={selectedPoster.finalPosterUrl}
+                    alt="Final Poster"
+                    className="rounded-md w-full h-auto"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src =
+                        "https://placehold.co/600x400?text=Poster+Not+Found";
+                      target.onerror = null;
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setIsViewModalOpen(false)}>
+            <div className="mt-6 flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setIsViewModalOpen(false)}
+              >
                 Close
-              </AlertDialogCancel>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-
-      {/* Edit Poster Dialog */}
-      {selectedPoster && (
-        <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>Edit Poster</DialogTitle>
-              <DialogDescription>
-                Update the poster details below. Click save when you're done.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="businessName" className="text-right">
-                  Business Name
-                </Label>
-                <Input
-                  id="businessName"
-                  value={editForm.businessName}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, businessName: e.target.value })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="phoneNumber" className="text-right">
-                  Phone Number
-                </Label>
-                <Input
-                  id="phoneNumber"
-                  value={editForm.phoneNumber}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, phoneNumber: e.target.value })
-                  }
-                  className="col-span-3"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={handleEditSubmit} disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save changes"}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </div>
+          </div>
+        </div>
       )}
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the
-              poster and all associated data.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeletePoster}
-              className="bg-destructive hover:bg-destructive/90"
-              disabled={isLoading}
-            >
-              {isLoading ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
