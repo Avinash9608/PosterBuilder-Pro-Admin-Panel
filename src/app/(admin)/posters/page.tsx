@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 const API_BASE_URL = "https://publicityposterbackend.onrender.com";
 import {
   Table,
@@ -44,6 +45,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import Image from "next/image";
+import { useAuth } from "@/hooks/use-auth";
 
 interface Poster {
   _id: string;
@@ -63,6 +65,8 @@ interface Poster {
 }
 
 export default function PostersManagementPage() {
+  const router = useRouter();
+  const { token, isAuthenticated } = useAuth();
   const [posters, setPosters] = useState<Poster[]>([]);
   const [selectedPoster, setSelectedPoster] = useState<Poster | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -80,22 +84,33 @@ export default function PostersManagementPage() {
       setIsLoading(true);
       const res = await fetch(`${API_BASE_URL}/api/posters/my-posters`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
       });
-      const data = await res.json();
-      if (res.ok) {
-        const postersWithFullPaths = data.map((poster: Poster) => ({
-          ...poster,
-          logoUrl: poster.logoUrl
-            ? `${API_BASE_URL}${poster.logoUrl}`
-            : undefined,
-          finalPosterUrl: `${API_BASE_URL}${poster.finalPosterUrl}`,
-        }));
-        setPosters(postersWithFullPaths);
-      } else {
-        throw new Error(data.message || "Failed to fetch posters");
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          toast({
+            variant: "destructive",
+            title: "Session Expired",
+            description: "Please login again",
+          });
+          router.push("/login");
+          return;
+        }
+        throw new Error("Failed to fetch posters");
       }
+
+      const data = await res.json();
+      const postersWithFullPaths = data.map((poster: Poster) => ({
+        ...poster,
+        logoUrl: poster.logoUrl
+          ? `${API_BASE_URL}${poster.logoUrl}`
+          : undefined,
+        finalPosterUrl: `${API_BASE_URL}${poster.finalPosterUrl}`,
+      }));
+      setPosters(postersWithFullPaths);
     } catch (err) {
       toast({
         variant: "destructive",
@@ -109,22 +124,18 @@ export default function PostersManagementPage() {
   };
 
   useEffect(() => {
-    fetchPosters();
-  }, []);
+    if (!isAuthenticated) {
+      router.push("/login");
+      return;
+    }
 
-  // Open edit modal and set form data
-  const openEditModal = (poster: Poster) => {
-    setSelectedPoster(poster);
-    setEditForm({
-      businessName: poster.businessName,
-      phoneNumber: poster.phoneNumber,
-    });
-    setIsEditModalOpen(true);
-  };
+    if (token) {
+      fetchPosters();
+    }
+  }, [token, isAuthenticated, router]);
 
-  // Handle edit form submission
   const handleEditSubmit = async () => {
-    if (!selectedPoster) return;
+    if (!selectedPoster || !token) return;
 
     try {
       setIsLoading(true);
@@ -134,19 +145,26 @@ export default function PostersManagementPage() {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(editForm),
         }
       );
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.message || "Failed to update poster");
+        if (res.status === 401) {
+          toast({
+            variant: "destructive",
+            title: "Session Expired",
+            description: "Please login again",
+          });
+          router.push("/login");
+          return;
+        }
+        throw new Error("Failed to update poster");
       }
 
-      // Update local state
+      const data = await res.json();
       setPosters((prev) =>
         prev.map((poster) =>
           poster._id === selectedPoster._id
@@ -172,9 +190,8 @@ export default function PostersManagementPage() {
     }
   };
 
-  // Handle poster deletion
   const handleDeletePoster = async () => {
-    if (!selectedPoster) return;
+    if (!selectedPoster || !token) return;
 
     try {
       setIsLoading(true);
@@ -183,22 +200,27 @@ export default function PostersManagementPage() {
         {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.message || "Failed to delete poster");
+        if (res.status === 401) {
+          toast({
+            variant: "destructive",
+            title: "Session Expired",
+            description: "Please login again",
+          });
+          router.push("/login");
+          return;
+        }
+        throw new Error("Failed to delete poster");
       }
 
-      // Update local state
       setPosters((prev) =>
         prev.filter((poster) => poster._id !== selectedPoster._id)
       );
-
       toast({
         title: "Success",
         description: "Poster deleted successfully",
@@ -216,10 +238,29 @@ export default function PostersManagementPage() {
     }
   };
 
+  const openEditModal = (poster: Poster) => {
+    setSelectedPoster(poster);
+    setEditForm({
+      businessName: poster.businessName,
+      phoneNumber: poster.phoneNumber,
+    });
+    setIsEditModalOpen(true);
+  };
+
   const openViewModal = (poster: Poster) => {
     setSelectedPoster(poster);
     setIsViewModalOpen(true);
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <p>Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -243,7 +284,13 @@ export default function PostersManagementPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {posters.length > 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    Loading posters...
+                  </TableCell>
+                </TableRow>
+              ) : posters.length > 0 ? (
                 posters.map((poster) => (
                   <TableRow key={poster._id}>
                     <TableCell className="font-medium">
@@ -289,7 +336,7 @@ export default function PostersManagementPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8">
-                    {isLoading ? "Loading posters..." : "No posters found"}
+                    No posters found
                   </TableCell>
                 </TableRow>
               )}
