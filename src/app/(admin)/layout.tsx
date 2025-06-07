@@ -15,6 +15,9 @@ const pageTitles: Record<string, string> = {
   "/posters": "Posters Management",
   "/users": "User Management",
   "/settings": "Settings",
+  "/UserQuery": "UserQuery",
+  "/posterpro": "Poster Pro",
+  "/googleAnalytics:": "Google Analytics",
 };
 
 export default function AdminLayout({

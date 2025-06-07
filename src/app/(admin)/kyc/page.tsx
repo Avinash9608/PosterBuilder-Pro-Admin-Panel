@@ -79,53 +79,7 @@ export default function KycManagementPage() {
     fetchUsers();
   }, []);
 
-  // Update KYC status
-  // const updateKycStatus = async (userId: string, status: KycStatus) => {
-  //   try {
-  //     setIsLoading(true);
-  //     const userToUpdate = users.find((user) => user._id === userId);
-  //     const res = await fetch(
-  //       `http://localhost:5000/api/admin/users/${userId}/kyc`,
-  //       {
-  //         method: "PATCH",
-  //         headers: {
-  //           "Content-Type": "application/json",
-  //         },
-  //         body: JSON.stringify({
-  //           status,
-  //           mobileNumber: userToUpdate?.mobileNumber,
-  //         }),
-  //       }
-  //     );
-
-  //     const data = await res.json();
-
-  //     if (!res.ok) {
-  //       throw new Error(data.message || "Failed to update status");
-  //     }
-
-  //     // Update local state
-  //     setUsers((prev) =>
-  //       prev.map((user) =>
-  //         user._id === userId ? { ...user, kycStatus: status } : user
-  //       )
-  //     );
-
-  //     toast({
-  //       title: "Success",
-  //       description: `KYC status updated to ${status}`,
-  //     });
-  //   } catch (err) {
-  //     toast({
-  //       variant: "destructive",
-  //       title: "Error",
-  //       description:
-  //         err instanceof Error ? err.message : "Failed to update status",
-  //     });
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
+ 
   // Update the updateKycStatus function to ensure mobileNumber is included
   const updateKycStatus = async (userId: string, status: KycStatus) => {
     try {

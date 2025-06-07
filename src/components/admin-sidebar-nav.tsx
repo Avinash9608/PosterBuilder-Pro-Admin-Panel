@@ -26,13 +26,17 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { MessagesSquare, BarChart } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/kyc", label: "KYC Management", icon: FileCheck },
   { href: "/templates", label: "Template Control", icon: LayoutTemplateIcon },
   { href: "/posters", label: "Posters Management", icon: FileImage },
+  { href: "/posterpro", label: "Poster Pro", icon: FileImage },
   { href: "/users", label: "User Management", icon: Users },
+  { href: "/userQuery", label: "UserQuery", icon: MessagesSquare },
+  { href: "/googleAnalytics", label: "Google Analytics", icon: BarChart },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
